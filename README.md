@@ -1,59 +1,70 @@
 # Oscilloscope XY Graphics with SIGLENT SDG6052X
 
-Projekt pokazuje możliwość wykorzystania generatora arbitralnego **SIGLENT SDG6052X** oraz oscyloskopu pracującego w trybie **X-Y** do generowania figur matematycznych, kształtów 2D oraz animowanych obiektów 3D.
+This project demonstrates how an arbitrary waveform generator, the **SIGLENT SDG6052X**, together with an oscilloscope operating in **X-Y mode**, can be used to generate mathematical figures, 2D vector graphics, and animated 3D objects.
 
-Sterowanie generatorem odbywa się z poziomu **Pythona** przy wykorzystaniu biblioteki **PyVISA** oraz komend **SCPI**.
+The generator is controlled from **Python** using **PyVISA** and **SCPI commands**.
 
-W projekcie używany był oscyloskop analogowy **HAMEG HM303-6**.
+The oscilloscope used during development was a **HAMEG HM303-6**.
 
 ---
 
-## Idea projektu
+## Project idea
 
-W trybie X-Y oscyloskop nie wykorzystuje klasycznej podstawy czasu.
+In X-Y mode, the oscilloscope does not use the normal time base.
 
-Położenie plamki na ekranie określane jest przez dwa niezależne sygnały:
+Instead, the position of the beam on the screen is controlled by two independent signals:
 
 ```text
 SIGLENT CH1  ->  X
 SIGLENT CH2  ->  Y
 ```
 
-Dla każdej chwili generator dostarcza więc parę współrzędnych:
+At every instant, the generator outputs a pair of coordinates:
 
 ```text
 X[n], Y[n]
 ```
 
-które odpowiadają kolejnym punktom rysowanego kształtu.
+These values determine the successive positions of the beam on the oscilloscope screen.
 
-Przykładowo okrąg może zostać opisany równaniami:
+For example, a circle can be described by:
 
 ```text
 X(t) = cos(t)
 Y(t) = sin(t)
 ```
 
-a bardziej skomplikowane figury mogą być tworzone poprzez dowolne funkcje parametryczne lub współrzędne wygenerowane na podstawie modelu 3D.
+More complex figures can be generated from parametric equations, interpolated points, or projected 3D geometry.
 
 ---
 
-# Funkcjonalności
+# Features
 
-Projekt jest rozwijany etapami i obejmuje kilka rodzajów generowanych obrazów.
+The project was developed in several stages and currently includes:
 
-## Figury Lissajousa
+- Lissajous figures,
+- custom 2D parametric shapes,
+- arbitrary waveform generation,
+- 3D wireframe objects,
+- rotating 3D animations,
+- direct SCPI control of the waveform generator,
+- TrueArb waveform playback,
+- synchronized X/Y channel output.
 
-Pierwszą częścią projektu są klasyczne figury Lissajousa generowane za pomocą dwóch przebiegów sinusoidalnych.
+---
 
-Program pozwala zmieniać:
+# Lissajous figures
 
-- stosunek częstotliwości `fx / fy`,
-- przesunięcie fazowe,
-- częstotliwość bazową,
-- czas prezentacji każdej figury.
+The first part of the project generates classical Lissajous figures using two sinusoidal signals.
 
-Przykładowe konfiguracje:
+The program allows control of:
+
+- the `fx / fy` frequency ratio,
+- phase shift,
+- base frequency,
+- display time of each figure.
+
+Example frequency ratios:
 
 ```text
 1 : 1
@@ -62,7 +73,7 @@ Przykładowe konfiguracje:
 2 : 3
 ```
 
-oraz fazy:
+Example phase shifts:
 
 ```text
 0°
@@ -72,22 +83,22 @@ oraz fazy:
 180°
 ```
 
-W tym przypadku generator pracuje bezpośrednio w trybie `SINE`.
+For Lissajous figures, the generator directly operates in `SINE` mode.
 
 ---
 
-## Kształty 2D
+# 2D shapes
 
-Program pozwala również generować własne przebiegi arbitralne.
+The project also supports custom arbitrary waveforms.
 
-Aktualnie zaimplementowane zostały m.in.:
+Currently implemented examples include:
 
-- serce,
-- gwiazda,
-- kula / siatka sferyczna,
-- własne przebiegi parametryczne.
+- heart,
+- star,
+- sphere-like wireframe,
+- custom parametric shapes.
 
-Przykładowo serce generowane jest na podstawie równań:
+For example, the heart is generated from:
 
 ```text
 x(t) = 16 sin³(t)
@@ -98,104 +109,104 @@ y(t) = 13 cos(t)
        - cos(4t)
 ```
 
-Współrzędne są następnie normalizowane do zakresu:
+The resulting coordinates are normalized to approximately:
 
 ```text
 -1 ... +1
 ```
 
-i konwertowane do 16-bitowych próbek generatora.
+before being converted into data suitable for the waveform generator.
 
 ---
 
-# Przebiegi arbitralne
+# Arbitrary waveform generation
 
-Dla bardziej skomplikowanych figur współrzędne `X` i `Y` są zamieniane na dane 16-bitowe:
+For complex shapes, the X and Y coordinates are converted into signed 16-bit values:
 
 ```python
 np.round(np.clip(x, -1, 1) * 32767).astype("<i2").tobytes()
 ```
 
-Zakres:
+This maps the normalized waveform approximately as follows:
 
 ```text
--1       -> około -32767
- 0       -> 0
-+1       -> około +32767
+-1.0  ->  -32767
+ 0.0  ->       0
++1.0  ->  +32767
 ```
 
-Następnie dane są przesyłane do generatora jako przebiegi arbitralne.
+The resulting binary data is then transferred to the generator.
 
-Przykładowo:
+For example:
 
 ```text
 CH1 -> SHAPE_X
 CH2 -> SHAPE_Y
 ```
 
-Do przesłania danych binarnych wykorzystywane jest:
+Binary waveform data is transmitted using:
 
 ```python
 device.write_raw(...)
 ```
 
-Generator jest następnie ustawiany w tryb:
+The generator is then configured to operate in:
 
 ```text
 ARB / TrueArb
 ```
 
-z interpolacją liniową pomiędzy kolejnymi punktami.
+mode.
 
 ---
 
-# Obiekty 3D
+# 3D graphics
 
-Projekt został rozszerzony również o podstawową grafikę 3D.
+The project was later extended to basic 3D vector graphics.
 
-Obiekt jest najpierw definiowany jako zbiór punktów:
+A 3D object is represented as a set of points:
 
 ```text
 [x, y, z]
 ```
 
-następnie wykonywany jest obrót w przestrzeni 3D, a otrzymany model jest rzutowany na płaszczyznę:
+These points are rotated in 3D space and then projected onto a 2D plane:
 
 ```text
-3D
+3D coordinates
 [x, y, z]
 
-   |
-   v
+      |
+      v
 
-obrót
+3D rotation
 
-   |
-   v
+      |
+      v
 
-projekcja
+projection
 
-   |
-   v
+      |
+      v
 
-2D
+2D coordinates
 [X, Y]
 
-   |
-   v
+      |
+      v
 
 CH1 + CH2
 ```
 
-Oscyloskop nadal otrzymuje wyłącznie dwie współrzędne, jednak dzięki odpowiedniej transformacji możliwe jest uzyskanie wrażenia trójwymiarowości.
+Although the oscilloscope still receives only X and Y signals, the transformed coordinates create the visual appearance of a three-dimensional object.
 
 ---
 
-## Obracający się sześcian
+# Rotating cube
 
-Jednym z pierwszych testów animacji 3D jest obracający się sześcian.
+One of the first 3D animation experiments is a rotating cube.
 
-Model składa się z ośmiu wierzchołków:
+The cube is defined by eight vertices:
 
 ```text
 [-1, -1, -1]
@@ -209,52 +220,54 @@ Model składa się z ośmiu wierzchołków:
 [-1,  1,  1]
 ```
 
-Kolejne klatki powstają poprzez zmianę kąta obrotu.
+The program creates successive frames by changing the rotation angle.
 
-Animacja nie jest przesyłana klatka po klatce przez sieć. Kolejne pozycje figury mogą zostać połączone w długi przebieg arbitralny, który następnie jest samodzielnie odtwarzany przez generator.
+Each frame is converted to X/Y coordinates and combined into an arbitrary waveform sequence.
 
 ---
 
-# Obracająca się krowa 3D
+# Rotating 3D cow
 
-Najbardziej rozbudowanym przykładem projektu jest **animowany model krowy 3D**.
+The most advanced example in the project is an **animated rotating 3D cow model**.
 
-Model jest zapisany bezpośrednio w pliku Pythona, dlatego nie jest potrzebny zewnętrzny plik:
+The model is embedded directly inside the Python source code, so no external file such as:
 
 ```text
 cow.obj
 ```
 
-Model zawiera:
+is required.
+
+The embedded model contains approximately:
 
 ```text
-2903 wierzchołki
-5804 trójkąty źródłowej siatki
-17413 punktów ciągłej ścieżki
+2903 vertices
+5804 triangles in the original mesh
+17413 points in the continuous drawing path
 ```
 
-Dane modelu zostały skompresowane i zapisane w kodzie przy użyciu:
+The model data is compressed using:
 
 ```text
 Base85 + zlib
 ```
 
-Po uruchomieniu są automatycznie dekodowane.
+and decoded automatically when the program starts.
 
 ---
 
-## Renderowanie krowy
+## 3D rendering process
 
-Dla każdej klatki wykonywane są:
+For every animation frame, the program performs:
 
-1. obrót modelu,
-2. transformacja współrzędnych,
-3. projekcja perspektywiczna,
-4. wybór kolejnych punktów ścieżki,
-5. skalowanie obrazu,
-6. utworzenie przebiegów `X` oraz `Y`.
+1. 3D rotation,
+2. coordinate transformation,
+3. perspective projection,
+4. path extraction,
+5. scaling,
+6. generation of X and Y waveforms.
 
-Zastosowana jest prosta projekcja perspektywiczna:
+A simple perspective projection is used:
 
 ```text
 perspective = CAMERA_DISTANCE / (CAMERA_DISTANCE - z)
@@ -263,15 +276,15 @@ X = x * perspective
 Y = y * perspective
 ```
 
-Dzięki temu model podczas obrotu zachowuje wrażenie przestrzenności.
+This gives the rotating model a visible sense of depth.
 
 ---
 
-## Animacja
+# Animation
 
-Podstawowe parametry animacji można zmieniać bez modyfikowania pozostałej części programu.
+The most important animation parameters can be adjusted directly in the source code.
 
-Przykład:
+Example:
 
 ```python
 ROTATION_PERIOD = 6.0
@@ -280,89 +293,87 @@ TRACE_REPEATS = 3
 ROTATION_DIRECTION = 1
 ```
 
-gdzie:
+Where:
 
 ```text
 ROTATION_PERIOD
 ```
 
-określa czas jednego pełnego obrotu,
+defines the time required for one full revolution,
 
 ```text
 ANIMATION_FPS
 ```
 
-określa liczbę różnych pozycji modelu generowanych na sekundę,
+defines the number of unique object positions generated per second,
 
-a:
+and:
 
 ```text
 TRACE_REPEATS
 ```
 
-określa, ile razy każda klatka jest ponownie kreślona przed przejściem do następnej.
+defines how many times each frame is redrawn before the next frame is displayed.
 
-Powtarzanie klatki zwiększa częstotliwość odświeżania obrazu na oscyloskopie i ogranicza widoczne migotanie.
+Repeating the same frame increases the effective refresh rate and helps reduce visible flicker on an analog oscilloscope.
 
 ---
 
-# TrueArb
+# TrueArb mode
 
-Do odtwarzania skomplikowanych przebiegów wykorzystywany jest tryb TrueArb generatora.
+Complex graphics are played using the TrueArb mode of the SIGLENT generator.
 
-Przykładowa konfiguracja:
+Example configuration:
 
 ```python
 C1:SRATE MODE,TARB,VALUE,<sample_rate>,INTER,LINE
 C2:SRATE MODE,TARB,VALUE,<sample_rate>,INTER,LINE
 ```
 
-Opcja:
+The option:
 
 ```text
 INTER,LINE
 ```
 
-powoduje liniową interpolację pomiędzy kolejnymi punktami.
+enables linear interpolation between consecutive points.
 
-Ma to szczególne znaczenie przy rysowaniu modeli zbudowanych z odcinków, ponieważ generator może płynnie połączyć kolejne wierzchołki bez konieczności generowania ogromnej liczby punktów pośrednich.
+This is particularly useful for vector graphics because the generator can connect successive vertices with straight lines without requiring thousands of manually generated intermediate samples.
 
 ---
 
-# Synchronizacja kanałów
+# Channel synchronization
 
-Przy pracy w trybie X-Y bardzo ważna jest synchronizacja obu kanałów.
+Synchronization between both generator channels is critical in X-Y mode.
 
-Program wykorzystuje:
+The project uses:
 
 ```text
 EQPHASE
 ```
 
-aby wyrównać fazę CH1 i CH2.
+to synchronize CH1 and CH2.
 
-Bez prawidłowej synchronizacji współrzędne:
+Without proper synchronization, the coordinate pairs:
 
 ```text
 X[n]
 Y[n]
 ```
 
-mogłyby zostać przesunięte względem siebie, powodując deformację obrazu.
+could become shifted in time relative to each other, causing visible distortion of the displayed figure.
 
 ---
 
-# Wymagania
+# Hardware
 
-## Sprzęt
+The project was developed using:
 
-Projekt został przygotowany dla:
+- **SIGLENT SDG6052X** arbitrary waveform generator,
+- **HAMEG HM303-6** analog oscilloscope,
+- PC connected to the generator over LAN.
 
-- generatora arbitralnego **SIGLENT SDG6052X**,
-- oscyloskopu **HAMEG HM303-6** pracującego w trybie X-Y,
-- komputera połączonego z generatorem poprzez LAN.
-
-Schemat połączenia:
+Connection diagram:
 
 ```text
 PC
@@ -376,82 +387,86 @@ SIGLENT SDG6052X
  +---- CH2 ----------------> HAMEG CH II (Y)
 ```
 
-Oscyloskop należy przełączyć w tryb:
+The oscilloscope must be configured in:
 
 ```text
-X-Y
+X-Y mode
 ```
 
 ---
 
-## Python
+# Software requirements
 
-Wymagany jest Python 3 oraz biblioteki:
+The project requires Python 3 and the following libraries:
 
 ```text
 numpy
 pyvisa
 ```
 
-Instalacja:
+Install them with:
 
 ```bash
 pip install numpy pyvisa
 ```
 
-W zależności od konfiguracji komputera potrzebna jest również implementacja VISA, np. NI-VISA lub:
+Depending on the system configuration, a VISA implementation may also be required.
+
+For example:
 
 ```bash
 pip install pyvisa-py
 ```
 
+or NI-VISA can be used.
+
 ---
 
-# Konfiguracja generatora
+# Generator configuration
 
-Przed uruchomieniem programu należy ustawić prawidłowy adres VISA generatora.
+Before running the scripts, set the correct VISA address of the waveform generator.
 
-Przykład:
+Example:
 
 ```python
 GENERATOR_ADDRESS = "TCPIP0::192.168.98.52::inst0::INSTR"
 ```
 
-lub w programie krowy 3D:
+or in the dedicated cow animation script:
 
 ```python
 VISA_RESOURCE = "TCPIP0::192.168.98.52::inst0::INSTR"
 ```
 
-Adres IP należy zmienić zgodnie z konfiguracją własnej sieci.
+The IP address should be changed to match your local network configuration.
 
 ---
 
-# Uruchomienie
+# Running the project
 
-Przykład uruchomienia programu:
+Example:
 
 ```bash
 python Figur_Lissajous.py
 ```
 
-lub programu dedykowanego animowanej krowie:
+For the dedicated 3D cow animation:
 
 ```bash
 python krowa_3d_sdg6052x.py
 ```
 
-Po nawiązaniu komunikacji generator powinien odpowiedzieć na:
+After connecting, the program verifies communication with:
 
 ```text
 *IDN?
 ```
 
-Następnie program przesyła odpowiednie przebiegi i uruchamia oba kanały.
+and then uploads the required waveforms to the generator.
 
 ---
 
-# Struktura projektu
+# Project structure
 
 ```text
 .
@@ -460,81 +475,102 @@ Następnie program przesyła odpowiednie przebiegi i uruchamia oba kanały.
 └── README.md
 ```
 
-### `Figur_Lissajous.py`
+## `Figur_Lissajous.py`
 
-Główny plik eksperymentalny zawierający m.in.:
+Main experimental script containing:
 
-- komunikację PyVISA,
-- figury Lissajousa,
-- serce,
-- gwiazdę,
-- sześcian,
-- kulę,
-- przebiegi ARB,
-- animowany sześcian,
-- eksperymenty z animacjami X-Y.
+- PyVISA communication,
+- Lissajous figures,
+- heart shape,
+- star shape,
+- cube,
+- sphere-like wireframe,
+- arbitrary waveform generation,
+- rotating cube,
+- X-Y animation experiments.
 
-### `krowa_3d_sdg6052x.py`
+## `krowa_3d_sdg6052x.py`
 
-Dedykowany program do generowania animowanego modelu krowy 3D.
+Dedicated script for the rotating 3D cow.
 
-Zawiera:
+It contains:
 
-- zaszyty model 3D,
-- dekodowanie geometrii,
-- macierze obrotu X/Y/Z,
-- projekcję perspektywiczną,
-- generowanie pełnej animacji,
-- konwersję przebiegu do 16 bit,
-- wysyłanie danych TrueArb do generatora,
-- synchronizację CH1 oraz CH2.
+- embedded 3D model data,
+- geometry decoding,
+- X/Y/Z rotation matrices,
+- perspective projection,
+- complete animation generation,
+- signed 16-bit waveform conversion,
+- TrueArb waveform transfer,
+- CH1 / CH2 synchronization.
 
 ---
 
-# Najważniejsza idea
+# How it works
 
-Projekt pokazuje, że oscyloskop analogowy może zostać wykorzystany nie tylko do obserwacji przebiegów czasowych.
-
-Po przełączeniu go w tryb X-Y generator arbitralny może pełnić rolę prostego systemu grafiki wektorowej:
+The general signal-processing path is:
 
 ```text
 Python
    |
    v
-matematyka / geometria 3D
+mathematics / 3D geometry
    |
    v
 X[n], Y[n]
    |
    v
-16-bit TrueArb
+16-bit arbitrary waveforms
    |
    v
 SIGLENT SDG6052X
    |
-   +-------- X
+   +------ CH1 = X
    |
-   +-------- Y
+   +------ CH2 = Y
    |
    v
-oscyloskop XY
+Analog oscilloscope in X-Y mode
 ```
 
-Pozwala to eksperymentować z:
-
-- figurami matematycznymi,
-- grafiką parametryczną,
-- przebiegami arbitralnymi,
-- transformacjami geometrycznymi,
-- macierzami obrotu,
-- projekcją 3D → 2D,
-- animacją,
-- sterowaniem aparaturą pomiarową przez SCPI.
+The project therefore turns a standard oscilloscope into a simple vector display controlled entirely from Python.
 
 ---
 
-# Status projektu
+# Educational goals
 
-Projekt ma charakter eksperymentalny i edukacyjny.
+The project is intended as an experimental and educational platform for learning about:
 
-Aktualnie rozwijane są kolejne metody generowania oraz animowania obrazów na oscyloskopie, a kod stanowi bazę do dalszych eksperymentów z grafiką wektorową, przebiegami arbitralnymi oraz sterowaniem aparaturą pomiarową z poziomu Pythona.
+- waveform generators,
+- SCPI communication,
+- PyVISA,
+- arbitrary waveform generation,
+- parametric equations,
+- vector graphics,
+- coordinate systems,
+- linear interpolation,
+- 3D transformations,
+- rotation matrices,
+- perspective projection,
+- digital-to-analog waveform playback,
+- synchronization of measurement equipment.
+
+---
+
+# Project status
+
+This is an experimental project and is still being developed.
+
+Future work may include:
+
+- additional 2D figures,
+- more complex 3D models,
+- smoother animations,
+- improved vector path optimization,
+- reduced flicker,
+- interactive object control,
+- real-time animation,
+- automatic oscilloscope scaling,
+- additional arbitrary waveform experiments.
+
+Contributions and experiments are welcome.
